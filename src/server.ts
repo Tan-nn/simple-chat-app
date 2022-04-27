@@ -1,16 +1,16 @@
 import express, { Application } from "express";
-import socketIO, { Server as SocketIOServer } from "socket.io";
+import { Server } from "socket.io";
 import { createServer, Server as HTTPServer } from "http";
 import path from "path";
 
-export class Server {
+export class ServerX {
   private httpServer: HTTPServer;
   private app: Application;
-  private io: SocketIOServer;
+  private io: Server;
 
   private activeSockets: string[] = [];
 
-  private readonly DEFAULT_PORT = 5000;
+  private readonly DEFAULT_PORT = 5100;
 
   constructor() {
     this.initialize();
@@ -19,11 +19,17 @@ export class Server {
   private initialize(): void {
     this.app = express();
     this.httpServer = createServer(this.app);
-    this.io = socketIO(this.httpServer);
+    this.io = new Server(5000, {
+      cors: {
+        origin: "*",
+        methods: ["GET", "POST"]
+      }
+    });
 
     this.configureApp();
     this.configureRoutes();
-    this.handleSocketConnection();
+    // this.handleSocketConnection();
+    this.handelSocketRoomConnection();
   }
 
   private configureApp(): void {
@@ -36,54 +42,41 @@ export class Server {
     });
   }
 
-  private handleSocketConnection(): void {
+
+  private handelSocketRoomConnection(): void {
     this.io.on("connection", socket => {
-      const existingSocket = this.activeSockets.find(
-        existingSocket => existingSocket === socket.id
-      );
+      socket.on("join-room", async (data: any) => {
+        console.log('join-room....', data.roomCode)
+        socket.join(data.roomCode);
+        //Send this event to everyone in the room.
+        this.io.sockets.in(data.roomCode).emit('listen-new-room-member', { socketId: socket.id });
+        let roomUsers = await this.io.in(data.roomCode).fetchSockets();
+        console.log('roomUsers:: ', roomUsers.length)
+      });
 
-      if (!existingSocket) {
-        this.activeSockets.push(socket.id);
+      socket.on('create-offer', (data) => {
+        console.log('create-offer ...', data.offer)
+        socket.to(data.roomCode).emit('listen-offer', data)
+      });
 
-        socket.emit("update-user-list", {
-          users: this.activeSockets.filter(
-            existingSocket => existingSocket !== socket.id
-          )
-        });
-
-        socket.broadcast.emit("update-user-list", {
-          users: [socket.id]
-        });
-      }
-
-      socket.on("call-user", (data: any) => {
-        socket.to(data.to).emit("call-made", {
-          offer: data.offer,
-          socket: socket.id
+      socket.on("create-answer", data => {
+        console.log('create-answer..', data.answer?.type)
+        socket.to(data.roomCode).emit("listen-answer", {
+          answer: data.answer,
+          roomCode: data.roomCode
         });
       });
 
-      socket.on("make-answer", data => {
-        socket.to(data.to).emit("answer-made", {
-          socket: socket.id,
-          answer: data.answer
-        });
+      socket.on('create-candidate', (data) => {
+        console.log('share-screen ...', data)
+        socket.to(data.roomCode).emit('listen-candidate', data)
       });
 
-      socket.on("reject-call", data => {
-        socket.to(data.from).emit("call-rejected", {
-          socket: socket.id
-        });
+      socket.on('share-screen', (data) => {
+        console.log('share-screen ...', data)
+        socket.to(data.roomCode).emit('share-screen-offer', data)
       });
 
-      socket.on("disconnect", () => {
-        this.activeSockets = this.activeSockets.filter(
-          existingSocket => existingSocket !== socket.id
-        );
-        socket.broadcast.emit("remove-user", {
-          socketId: socket.id
-        });
-      });
     });
   }
 

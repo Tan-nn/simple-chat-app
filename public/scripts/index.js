@@ -43,7 +43,7 @@ function createUserItemContainer(socketId) {
 async function callUser(socketId) {
   const offer = await peerConnection.createOffer();
   await peerConnection.setLocalDescription(new RTCSessionDescription(offer));
-
+  console.log("call-user:: ", offer);
   socket.emit("call-user", {
     offer,
     to: socketId
@@ -78,6 +78,8 @@ socket.on("remove-user", ({ socketId }) => {
 });
 
 socket.on("call-made", async data => {
+  console.log("call-made:: ", data);
+
   if (getCalled) {
     const confirmed = confirm(
       `User "Socket: ${data.socket}" wants to call you. Do accept this call?`
@@ -98,6 +100,7 @@ socket.on("call-made", async data => {
   const answer = await peerConnection.createAnswer();
   await peerConnection.setLocalDescription(new RTCSessionDescription(answer));
 
+  console.log("make-answer:: ", answer);
   socket.emit("make-answer", {
     answer,
     to: data.socket
@@ -106,6 +109,7 @@ socket.on("call-made", async data => {
 });
 
 socket.on("answer-made", async data => {
+  console.log("answer-made:: ", data);
   await peerConnection.setRemoteDescription(
     new RTCSessionDescription(data.answer)
   );
