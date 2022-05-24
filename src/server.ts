@@ -77,6 +77,11 @@ export class ServerX {
         socket.to(data.roomCode).emit('share-screen-offer', data)
       });
 
+      socket.on('submit-canvas-stream-id', (data) => {
+        console.log('submit-canvas-stream-id ...', data)
+        socket.to(data.roomCode).emit('get-canvas-stream-id', data)
+      });
+
     });
   }
 
